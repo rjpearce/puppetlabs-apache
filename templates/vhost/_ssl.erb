@@ -29,6 +29,9 @@
 <% if @ssl_honorcipherorder -%>
   SSLHonorCipherOrder     <%= @ssl_honorcipherorder %>
 <% end -%>
+<% if @ssl_verify_client -%>
+  SSLVerifyClient         <%= @ssl_verify_client %>
+<% end -%>
   <FilesMatch "\.(cgi|shtml|phtml|php)$">
     SSLOptions +StdEnvVars
   </FilesMatch>

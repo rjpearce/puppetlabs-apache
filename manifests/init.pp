@@ -22,6 +22,7 @@ class apache (
   $default_ssl_ca       = undef,
   $default_ssl_crl_path = undef,
   $default_ssl_crl      = undef,
+  $default_ssl_verify_client = undef,
   $service_enable       = true,
   $service_ensure       = 'running',
   $purge_configs        = true,
