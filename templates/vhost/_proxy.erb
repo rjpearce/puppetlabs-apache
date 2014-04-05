@@ -5,8 +5,8 @@
 <%- end -%>
 <% [@proxy_pass].flatten.compact.each do |proxy| %>
   ProxyPass <%= proxy['path'] %> <%= proxy['url'] %>
-  <Location <%= proxy['path']%>/>
-    ProxyPassReverse /
+  <Location <%= proxy['path']%>>
+    ProxyPassReverse <%= proxy['url'] %>
   </Location>
 <% end %>
 <% if @proxy_dest -%>
@@ -15,6 +15,6 @@
 <% end %>
   ProxyPass          / <%= @proxy_dest %>/
   <Location          />
-    ProxyPassReverse /
+    ProxyPassReverse <%= @proxy_dest %>/
   </Location>
 <% end -%>
