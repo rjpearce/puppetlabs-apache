@@ -28,6 +28,11 @@ class apache::params inherits ::apache::version {
   # The default error log level
   $log_level = 'warn'
 
+  if $::operatingsystem == 'Ubuntu' and $::lsbdistrelease == '10.04' {
+    $verify_command = '/usr/sbin/apache2ctl -t'
+  } else {
+    $verify_command = '/usr/sbin/apachectl -t'
+  }
   if $::osfamily == 'RedHat' or $::operatingsystem == 'amazon' {
     $user                 = 'apache'
     $group                = 'apache'
@@ -39,26 +44,34 @@ class apache::params inherits ::apache::version {
     $conf_dir             = "${httpd_dir}/conf"
     $confd_dir            = "${httpd_dir}/conf.d"
     $mod_dir              = "${httpd_dir}/conf.d"
+    $mod_enable_dir       = undef
     $vhost_dir            = "${httpd_dir}/conf.d"
+    $vhost_enable_dir     = undef
     $conf_file            = 'httpd.conf'
     $ports_file           = "${conf_dir}/ports.conf"
     $logroot              = '/var/log/httpd'
+    $logroot_mode         = undef
     $lib_path             = 'modules'
     $mpm_module           = 'prefork'
     $dev_packages         = 'httpd-devel'
     $default_ssl_cert     = '/etc/pki/tls/certs/localhost.crt'
     $default_ssl_key      = '/etc/pki/tls/private/localhost.key'
     $ssl_certs_dir        = '/etc/pki/tls/certs'
-    $passenger_conf_file  = 'passenger.conf'
-    $passenger_conf_package_file = undef
-    $passenger_root       = '/usr/lib/ruby/gems/1.8/gems/passenger-3.0.19'
-    $passenger_ruby       = '/usr/bin/ruby'
+    $passenger_conf_file  = 'passenger_extra.conf'
+    $passenger_conf_package_file = 'passenger.conf'
+    $passenger_root       = undef
+    $passenger_ruby       = undef
+    $passenger_default_ruby = undef
     $suphp_addhandler     = 'php5-script'
     $suphp_engine         = 'off'
     $suphp_configpath     = undef
+    # NOTE: The module for Shibboleth is not available to RH/CentOS without an additional repository. http://wiki.aaf.edu.au/tech-info/sp-install-guide
     $mod_packages         = {
       'auth_kerb'   => 'mod_auth_kerb',
-      'authnz_ldap' => 'mod_authz_ldap',
+      'authnz_ldap' => $::apache::version::distrelease ? {
+        '7'     => 'mod_ldap',
+        default => 'mod_authz_ldap',
+      },
       'fastcgi'     => 'mod_fastcgi',
       'fcgid'       => 'mod_fcgid',
       'pagespeed'   => 'mod-pagespeed-stable',
@@ -70,6 +83,7 @@ class apache::params inherits ::apache::version {
       },
       'proxy_html'  => 'mod_proxy_html',
       'python'      => 'mod_python',
+      'security'    => 'mod_security',
       'shibboleth'  => 'shibboleth',
       'ssl'         => 'mod_ssl',
       'wsgi'        => 'mod_wsgi',
@@ -77,6 +91,7 @@ class apache::params inherits ::apache::version {
       'suphp'       => 'mod_suphp',
       'xsendfile'   => 'mod_xsendfile',
       'nss'         => 'mod_nss',
+      'shib2'       => 'shibboleth',
     }
     $mod_libs             = {
       'php5' => 'libphp5.so',
@@ -85,40 +100,70 @@ class apache::params inherits ::apache::version {
     $conf_template        = 'apache/httpd.conf.erb'
     $keepalive            = 'Off'
     $keepalive_timeout    = 15
+    $max_keepalive_requests = 100
     $fastcgi_lib_path     = undef
     $mime_support_package = 'mailcap'
     $mime_types_config    = '/etc/mime.types'
+    $docroot              = '/var/www/html'
+    if $::osfamily == 'RedHat' {
+      $wsgi_socket_prefix = '/var/run/wsgi'
+    } else {
+      $wsgi_socket_prefix = undef
+    }
+    $modsec_crs_package   = 'mod_security_crs'
+    $modsec_crs_path      = '/usr/lib/modsecurity.d'
+    $modsec_dir           = '/etc/httpd/modsecurity.d'
+    $modsec_default_rules = [
+      'base_rules/modsecurity_35_bad_robots.data',
+      'base_rules/modsecurity_35_scanners.data',
+      'base_rules/modsecurity_40_generic_attacks.data',
+      'base_rules/modsecurity_41_sql_injection_attacks.data',
+      'base_rules/modsecurity_50_outbound.data',
+      'base_rules/modsecurity_50_outbound_malware.data',
+      'base_rules/modsecurity_crs_20_protocol_violations.conf',
+      'base_rules/modsecurity_crs_21_protocol_anomalies.conf',
+      'base_rules/modsecurity_crs_23_request_limits.conf',
+      'base_rules/modsecurity_crs_30_http_policy.conf',
+      'base_rules/modsecurity_crs_35_bad_robots.conf',
+      'base_rules/modsecurity_crs_40_generic_attacks.conf',
+      'base_rules/modsecurity_crs_41_sql_injection_attacks.conf',
+      'base_rules/modsecurity_crs_41_xss_attacks.conf',
+      'base_rules/modsecurity_crs_42_tight_security.conf',
+      'base_rules/modsecurity_crs_45_trojans.conf',
+      'base_rules/modsecurity_crs_47_common_exceptions.conf',
+      'base_rules/modsecurity_crs_49_inbound_blocking.conf',
+      'base_rules/modsecurity_crs_50_outbound.conf',
+      'base_rules/modsecurity_crs_59_outbound_blocking.conf',
+      'base_rules/modsecurity_crs_60_correlation.conf'
+    ]
   } elsif $::osfamily == 'Debian' {
-    $user             = 'www-data'
-    $group            = 'www-data'
-    $root_group       = 'root'
-    $apache_name      = 'apache2'
-    $service_name     = 'apache2'
-    $httpd_dir        = '/etc/apache2'
-    $server_root      = '/etc/apache2'
-    $conf_dir         = $httpd_dir
-    $confd_dir        = "${httpd_dir}/conf.d"
-    $mod_dir          = "${httpd_dir}/mods-available"
-    $mod_enable_dir   = "${httpd_dir}/mods-enabled"
-    $vhost_dir        = "${httpd_dir}/sites-available"
-    $vhost_enable_dir = "${httpd_dir}/sites-enabled"
-    $conf_file        = 'apache2.conf'
-    $ports_file       = "${conf_dir}/ports.conf"
-    $logroot          = '/var/log/apache2'
-    $lib_path         = '/usr/lib/apache2/modules'
-    $mpm_module       = 'worker'
-    $dev_packages     = ['libaprutil1-dev', 'libapr1-dev', 'apache2-prefork-dev']
-    $default_ssl_cert = '/etc/ssl/certs/ssl-cert-snakeoil.pem'
-    $default_ssl_key  = '/etc/ssl/private/ssl-cert-snakeoil.key'
-    $ssl_certs_dir    = '/etc/ssl/certs'
-    $passenger_conf_file = 'passenger.conf'
-    $passenger_conf_package_file = undef
-    $passenger_root   = '/usr'
-    $passenger_ruby   = '/usr/bin/ruby'
-    $suphp_addhandler  = 'x-httpd-php'
-    $suphp_engine      = 'off'
-    $suphp_configpath  = '/etc/php5/apache2'
-    $mod_packages     = {
+    $user                = 'www-data'
+    $group               = 'www-data'
+    $root_group          = 'root'
+    $apache_name         = 'apache2'
+    $service_name        = 'apache2'
+    $httpd_dir           = '/etc/apache2'
+    $server_root         = '/etc/apache2'
+    $conf_dir            = $httpd_dir
+    $confd_dir           = "${httpd_dir}/conf.d"
+    $mod_dir             = "${httpd_dir}/mods-available"
+    $mod_enable_dir      = "${httpd_dir}/mods-enabled"
+    $vhost_dir           = "${httpd_dir}/sites-available"
+    $vhost_enable_dir    = "${httpd_dir}/sites-enabled"
+    $conf_file           = 'apache2.conf'
+    $ports_file          = "${conf_dir}/ports.conf"
+    $logroot             = '/var/log/apache2'
+    $logroot_mode        = undef
+    $lib_path            = '/usr/lib/apache2/modules'
+    $mpm_module          = 'worker'
+    $dev_packages        = ['libaprutil1-dev', 'libapr1-dev', 'apache2-prefork-dev']
+    $default_ssl_cert    = '/etc/ssl/certs/ssl-cert-snakeoil.pem'
+    $default_ssl_key     = '/etc/ssl/private/ssl-cert-snakeoil.key'
+    $ssl_certs_dir       = '/etc/ssl/certs'
+    $suphp_addhandler    = 'x-httpd-php'
+    $suphp_engine        = 'off'
+    $suphp_configpath    = '/etc/php5/apache2'
+    $mod_packages        = {
       'auth_kerb'   => 'libapache2-mod-auth-kerb',
       'dav_svn'     => 'libapache2-svn',
       'fastcgi'     => 'libapache2-mod-fastcgi',
@@ -131,19 +176,102 @@ class apache::params inherits ::apache::version {
       'proxy_html'  => 'libapache2-mod-proxy-html',
       'python'      => 'libapache2-mod-python',
       'rpaf'        => 'libapache2-mod-rpaf',
+      'security'    => 'libapache2-modsecurity',
       'suphp'       => 'libapache2-mod-suphp',
       'wsgi'        => 'libapache2-mod-wsgi',
       'xsendfile'   => 'libapache2-mod-xsendfile',
+      'shib2'       => 'libapache2-mod-shib2',
     }
-    $mod_libs         = {
+    $mod_libs             = {
       'php5' => 'libphp5.so',
     }
-    $conf_template     = 'apache/httpd.conf.erb'
-    $keepalive         = 'Off'
-    $keepalive_timeout = 15
-    $fastcgi_lib_path  = '/var/lib/apache2/fastcgi'
+    $conf_template          = 'apache/httpd.conf.erb'
+    $keepalive              = 'Off'
+    $keepalive_timeout      = 15
+    $max_keepalive_requests = 100
+    $fastcgi_lib_path       = '/var/lib/apache2/fastcgi'
     $mime_support_package = 'mime-support'
-    $mime_types_config = '/etc/mime.types'
+    $mime_types_config    = '/etc/mime.types'
+    $docroot              = '/var/www'
+    $modsec_crs_package   = 'modsecurity-crs'
+    $modsec_crs_path      = '/usr/share/modsecurity-crs'
+    $modsec_dir           = '/etc/modsecurity'
+    $modsec_default_rules = [
+      'base_rules/modsecurity_35_bad_robots.data',
+      'base_rules/modsecurity_35_scanners.data',
+      'base_rules/modsecurity_40_generic_attacks.data',
+      'base_rules/modsecurity_41_sql_injection_attacks.data',
+      'base_rules/modsecurity_50_outbound.data',
+      'base_rules/modsecurity_50_outbound_malware.data',
+      'base_rules/modsecurity_crs_20_protocol_violations.conf',
+      'base_rules/modsecurity_crs_21_protocol_anomalies.conf',
+      'base_rules/modsecurity_crs_23_request_limits.conf',
+      'base_rules/modsecurity_crs_30_http_policy.conf',
+      'base_rules/modsecurity_crs_35_bad_robots.conf',
+      'base_rules/modsecurity_crs_40_generic_attacks.conf',
+      'base_rules/modsecurity_crs_41_sql_injection_attacks.conf',
+      'base_rules/modsecurity_crs_41_xss_attacks.conf',
+      'base_rules/modsecurity_crs_42_tight_security.conf',
+      'base_rules/modsecurity_crs_45_trojans.conf',
+      'base_rules/modsecurity_crs_47_common_exceptions.conf',
+      'base_rules/modsecurity_crs_49_inbound_blocking.conf',
+      'base_rules/modsecurity_crs_50_outbound.conf',
+      'base_rules/modsecurity_crs_59_outbound_blocking.conf',
+      'base_rules/modsecurity_crs_60_correlation.conf'
+    ]
+
+    #
+    # Passenger-specific settings
+    #
+
+    $passenger_conf_file         = 'passenger.conf'
+    $passenger_conf_package_file = undef
+
+    case $::operatingsystem {
+      'Ubuntu': {
+        case $::lsbdistrelease {
+          '12.04': {
+            $passenger_root         = '/usr'
+            $passenger_ruby         = '/usr/bin/ruby'
+            $passenger_default_ruby = undef
+          }
+          '14.04': {
+            $passenger_root         = '/usr/lib/ruby/vendor_ruby/phusion_passenger/locations.ini'
+            $passenger_ruby         = undef
+            $passenger_default_ruby = '/usr/bin/ruby'
+          }
+          default: {
+            # The following settings may or may not work on Ubuntu releases not
+            # supported by this module.
+            $passenger_root         = '/usr'
+            $passenger_ruby         = '/usr/bin/ruby'
+            $passenger_default_ruby = undef
+          }
+        }
+      }
+      'Debian': {
+        case $::lsbdistcodename {
+          'wheezy': {
+            $passenger_root         = '/usr'
+            $passenger_ruby         = '/usr/bin/ruby'
+            $passenger_default_ruby = undef
+          }
+          'jessie': {
+            $passenger_root         = '/usr/lib/ruby/vendor_ruby/phusion_passenger/locations.ini'
+            $passenger_ruby         = undef
+            $passenger_default_ruby = '/usr/bin/ruby'
+          }
+          default: {
+            # The following settings may or may not work on Debian releases not
+            # supported by this module.
+            $passenger_root         = '/usr'
+            $passenger_ruby         = '/usr/bin/ruby'
+            $passenger_default_ruby = undef
+          }
+        }
+      }
+    }
+    $wsgi_socket_prefix = undef
   } elsif $::osfamily == 'FreeBSD' {
     $user             = 'www'
     $group            = 'www'
@@ -161,6 +289,7 @@ class apache::params inherits ::apache::version {
     $conf_file        = 'httpd.conf'
     $ports_file       = "${conf_dir}/ports.conf"
     $logroot          = '/var/log/apache22'
+    $logroot_mode     = undef
     $lib_path         = '/usr/local/libexec/apache22'
     $mpm_module       = 'prefork'
     $dev_packages     = undef
@@ -171,6 +300,7 @@ class apache::params inherits ::apache::version {
     $passenger_conf_package_file = undef
     $passenger_root   = '/usr/local/lib/ruby/gems/1.9/gems/passenger-4.0.10'
     $passenger_ruby   = '/usr/bin/ruby'
+    $passenger_default_ruby = undef
     $suphp_addhandler = 'php5-script'
     $suphp_engine     = 'off'
     $suphp_configpath = undef
@@ -180,7 +310,6 @@ class apache::params inherits ::apache::version {
       # NOTE: 'php' needs to enable APACHE option in make config
       # NOTE: 'dav_svn' needs to enable MOD_DAV_SVN make config
       # NOTE: not sure where the shibboleth should come from
-      # NOTE: don't know where the shibboleth module should come from
       'auth_kerb'  => 'www/mod_auth_kerb2',
       'fcgid'      => 'www/mod_fcgid',
       'passenger'  => 'www/rubygem-passenger',
@@ -191,7 +320,8 @@ class apache::params inherits ::apache::version {
       'wsgi'       => 'www/mod_wsgi',
       'dav_svn'    => 'devel/subversion',
       'xsendfile'  => 'www/mod_xsendfile',
-      'rpaf'       => 'www/mod_rpaf2'
+      'rpaf'       => 'www/mod_rpaf2',
+      'shib2'      => 'security/shibboleth2-sp',
     }
     $mod_libs         = {
       'php5' => 'libphp5.so',
@@ -199,9 +329,12 @@ class apache::params inherits ::apache::version {
     $conf_template        = 'apache/httpd.conf.erb'
     $keepalive            = 'Off'
     $keepalive_timeout    = 15
+    $max_keepalive_requests = 100
     $fastcgi_lib_path     = undef # TODO: revisit
     $mime_support_package = 'misc/mime-support'
     $mime_types_config    = '/usr/local/etc/mime.types'
+    $wsgi_socket_prefix   = undef
+    $docroot              = '/usr/local/www/apache22/data'
   } else {
     fail("Class['apache::params']: Unsupported osfamily: ${::osfamily}")
   }
